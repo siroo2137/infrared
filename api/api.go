@@ -2,28 +2,30 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
-	"github.com/gorilla/mux"
-	"github.com/haveachin/infrared"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/gorilla/mux"
+	"github.com/haveachin/infrared"
 )
 
-// APIConfig holds the API configuration including the Bearer token
-type APIConfig struct {
-	BearerToken string `json:"bearerToken"`
-}
+func envString(name string, value string) string {
+	envString := os.Getenv(name)
+	if envString == "" {
+		return value
+	}
 
-var config APIConfig
+	return envString
+}
 
 // authenticateMiddleware checks for valid Bearer token in Authorization header
 func authenticateMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
-		
+
 		if authHeader == "" {
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(map[string]string{
@@ -43,7 +45,7 @@ func authenticateMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		token := headerParts[1]
-		if token != config.BearerToken {
+		if token != envString("INFRARED_TOKEN", "") {
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Invalid token",
@@ -55,37 +57,11 @@ func authenticateMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// LoadConfig loads the API configuration from file
-func LoadConfig(configFile string) error {
-	data, err := ioutil.ReadFile(configFile)
-	if err != nil {
-		return err
-	}
-
-	err = json.Unmarshal(data, &config)
-	if err != nil {
-		return err
-	}
-
-	if config.BearerToken == "" {
-		return fmt.Errorf("bearer token not found in config file")
-	}
-
-	return nil
-}
-
 // ListenAndServe Start Webserver
-func ListenAndServe(configPath string, apiBind string, apiConfigPath string) {
-	// Load API configuration
-	err := LoadConfig(apiConfigPath)
-	if err != nil {
-		log.Fatalf("Failed to load API config: %v", err)
-	}
-
+func ListenAndServe(configPath string, apiBind string) {
 	log.Println("Starting WebAPI on " + apiBind)
 	router := mux.NewRouter()
 
-	// Apply authentication to all routes
 	router.HandleFunc("/", authenticateMiddleware(getHome())).Methods("GET")
 	router.HandleFunc("/proxies", authenticateMiddleware(getProxies(configPath))).Methods("GET")
 	router.HandleFunc("/proxies/{name}", authenticateMiddleware(getProxy(configPath))).Methods("GET")

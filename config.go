@@ -6,9 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/go-redis/redis/v8"
-	"golang.org/x/net/context"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
 	"net"
@@ -17,6 +14,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/go-redis/redis/v8"
+	"golang.org/x/net/context"
+	"gopkg.in/yaml.v2"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/haveachin/infrared/protocol"

@@ -4,14 +4,15 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/cloudflare/tableflip"
-	"github.com/haveachin/infrared"
-	"github.com/haveachin/infrared/api"
 	"log"
 	"os"
 	"os/signal"
 	"strconv"
 	"syscall"
+
+	"github.com/cloudflare/tableflip"
+	"github.com/haveachin/infrared"
+	"github.com/haveachin/infrared/api"
 )
 
 const (
