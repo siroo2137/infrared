@@ -10,9 +10,15 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/haveachin/infrared"
+	"github.com/joho/godotenv"
 )
 
 func envString(name string, value string) string {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatalf("Error loading .env file")
+	}
+
 	envString := os.Getenv(name)
 	if envString == "" {
 		return value
