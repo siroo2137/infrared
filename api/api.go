@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/haveachin/infrared"
 	"io/ioutil"
@@ -11,16 +12,85 @@ import (
 	"strings"
 )
 
+// APIConfig holds the API configuration including the Bearer token
+type APIConfig struct {
+	BearerToken string `json:"bearerToken"`
+}
+
+var config APIConfig
+
+// authenticateMiddleware checks for valid Bearer token in Authorization header
+func authenticateMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		
+		if authHeader == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "No authorization header provided",
+			})
+			return
+		}
+
+		// Check if the header starts with "Bearer "
+		headerParts := strings.Split(authHeader, " ")
+		if len(headerParts) != 2 || headerParts[0] != "Bearer" {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid authorization header format",
+			})
+			return
+		}
+
+		token := headerParts[1]
+		if token != config.BearerToken {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid token",
+			})
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	}
+}
+
+// LoadConfig loads the API configuration from file
+func LoadConfig(configFile string) error {
+	data, err := ioutil.ReadFile(configFile)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(data, &config)
+	if err != nil {
+		return err
+	}
+
+	if config.BearerToken == "" {
+		return fmt.Errorf("bearer token not found in config file")
+	}
+
+	return nil
+}
+
 // ListenAndServe Start Webserver
-func ListenAndServe(configPath string, apiBind string) {
+func ListenAndServe(configPath string, apiBind string, apiConfigPath string) {
+	// Load API configuration
+	err := LoadConfig(apiConfigPath)
+	if err != nil {
+		log.Fatalf("Failed to load API config: %v", err)
+	}
+
 	log.Println("Starting WebAPI on " + apiBind)
 	router := mux.NewRouter()
 
-	router.HandleFunc("/", getHome()).Methods("GET")
-	router.HandleFunc("/proxies", getProxies(configPath)).Methods("GET")
-	router.HandleFunc("/proxies/{name}", getProxy(configPath)).Methods("GET")
-	router.HandleFunc("/proxies/{name}", addProxyWithName(configPath)).Methods("POST")
-	router.HandleFunc("/proxies/{name}", removeProxy(configPath)).Methods("DELETE")
+	// Apply authentication to all routes
+	router.HandleFunc("/", authenticateMiddleware(getHome())).Methods("GET")
+	router.HandleFunc("/proxies", authenticateMiddleware(getProxies(configPath))).Methods("GET")
+	router.HandleFunc("/proxies/{name}", authenticateMiddleware(getProxy(configPath))).Methods("GET")
+	router.HandleFunc("/proxies/{name}", authenticateMiddleware(addProxyWithName(configPath))).Methods("POST")
+	router.HandleFunc("/proxies/{name}", authenticateMiddleware(removeProxy(configPath))).Methods("DELETE")
 
 	if infrared.Config.Tableflip.Enabled {
 		listen, err := infrared.Upg.Listen("tcp", apiBind)
